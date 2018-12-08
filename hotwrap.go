@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/fnproject/fdk-go"
 	"context"
+	fdk "github.com/fnproject/fdk-go"
 	"io"
-	"os"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -16,10 +16,9 @@ func main() {
 		log.Fatal("Failed to start hotwrap, no command specified in arguments ")
 	}
 
-
 	if os.Getenv("HOTWRAP_VERBOSE") != "" {
-
 	}
+
 	cmd := os.Args[1]
 	var args []string
 	if len(os.Args) > 1 {
@@ -49,36 +48,54 @@ func (hw *hotWrap) logf(fmt string, args ...interface{}) {
 
 func (hw *hotWrap) Serve(ctx context.Context, r io.Reader, w io.Writer) {
 
+	rctx := fdk.GetContext(ctx)
+	hdr := rctx.Header()
 
-	hw.logf("Running '%s %s'", hw.cmd, strings.Join(hw.args," "))
-
+	// Each env entry is of the form "key=value".
 	baseEnv := hw.env
 
+	// Map custom Fn-Http-H-* headers to FN_HEADER_* env variables
+	// ToDo: check that map custom Fn-Http-H-* headers to FN_HEADER_* env variables is still applicable
+	// ToDo: check Lowercasing behaviour for K
+	//   curl -H "lower:lower" -> FN_HEADER_Lower='lower'
+	//   curl -H "UPER:UPER" -> FN_HEADER_Uper='UPER'
+	for k, vs := range hdr {
+		switch {
+		case strings.HasPrefix(k, "Fn-Http-H-Accept"):
+		case strings.HasPrefix(k, "Fn-Http-H-User-Agent"):
+		case strings.HasPrefix(k, "Fn-Http-H-Content-Length"):
+		case strings.HasPrefix(k, "Fn-Http-H-"):
+			envVar := "FN_HEADER_" + strings.TrimPrefix(k, "Fn-Http-H-") + "=" + vs[0]
+			baseEnv = append(baseEnv, envVar)
+		default:
+		}
+	}
+
 	cmd := exec.Command(hw.cmd, hw.args...)
+
 	cmd.Env = baseEnv
 	cmd.Stdout = w
 	cmd.Stdin = r
 
 	stderr, err := cmd.StderrPipe()
 
-	if err !=nil {
-		log.Fatalf("Failed to open stderr pipe %s",err)
-
+	if err != nil {
+		log.Fatalf("Failed to open stderr pipe %s", err)
 	}
 
-	go func(){
-		io.Copy(os.Stderr,stderr)
+	go func() {
+		io.Copy(os.Stderr, stderr)
 	}()
 
 	err = cmd.Start()
-	if err !=nil {
-		log.Fatalf("Failed to start command %s",err)
+	if err != nil {
+		log.Fatalf("Failed to start command %s", err)
 	}
 
 	err = cmd.Wait()
 
-	if ee,ok:= err.(*exec.ExitError); ok  {
-		log.Printf("Command %s exited with status %s",hw.cmd,ee.ProcessState)
+	if ee, ok := err.(*exec.ExitError); ok {
+		log.Printf("Command %s exited with status %s", hw.cmd, ee.ProcessState)
 		fdk.WriteStatus(w, 500)
 	}
 
