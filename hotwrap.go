@@ -59,6 +59,7 @@ func (hw *hotWrap) Serve(ctx context.Context, r io.Reader, w io.Writer) {
 	// ToDo: check Lowercasing behaviour for K
 	//   curl -H "lower:lower" -> FN_HEADER_Lower='lower'
 	//   curl -H "UPER:UPER" -> FN_HEADER_Uper='UPER'
+	// See https://github.com/fnproject/fdk-java/blob/eac3fffe1decde276536821c2924b425a4589e7d/api/src/main/java/com/fnproject/fn/api/Headers.java#L15-L23
 	for k, vs := range hdr {
 		switch {
 		case strings.HasPrefix(k, "Fn-Http-H-Accept"):
